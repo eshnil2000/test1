@@ -1,0 +1,41 @@
+version: '3'
+
+services:
+
+  generator:
+    #build: ./generator
+    image: eshnil2000/generator
+    environment:
+      KAFKA_BROKER_URL1: kafka1:9091
+      KAFKA_BROKER_URL2: kafka2:9092
+      KAFKA_BROKER_URL3: kafka3:9093
+      TRANSACTIONS_TOPIC: queueing.transactions
+      TRANSACTIONS_PER_SECOND: 5
+      ORDER_BOOK_URL: http://crypto:5000/order/new
+    depends_on:
+      - crypto
+    networks:
+      traefik_default:    
+
+
+  detector:
+    #build: ./detector
+    image: eshnil2000/detector
+    environment:
+      KAFKA_BROKER_URL1: kafka1:9091
+      KAFKA_BROKER_URL2: kafka2:9092
+      KAFKA_BROKER_URL3: kafka3:9093
+      TRANSACTIONS_TOPIC: queueing.transactions
+      OTHER_TOPIC: streaming.transactions.other
+      BTC_TOPIC: streaming.transactions.btcusd
+      ORDER_BOOK_URL: http://crypto:5000/order/new
+    depends_on:
+      - crypto
+    networks:
+      traefik_default:
+
+networks:
+  traefik_default:
+    driver: overlay
+    external:
+      name:  traefik_default
