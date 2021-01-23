@@ -54,7 +54,7 @@ docker stack rm crypto
 #Setup the transaction generator/detector
 docker build -t detector .
 docker build -t generator .
-docker stack deploy -c docker-compose.yml detgen
+docker stack deploy -c docker-compose.kafka.detgen.yml detgen
 
 #check kafka dashboard: Browser
 http://kafdrop.localhost
