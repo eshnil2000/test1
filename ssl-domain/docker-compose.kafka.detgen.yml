@@ -1,4 +1,3 @@
-#docker stack deploy -c docker-compose.kafka.detgen.yml detgen
 version: '3'
 
 services:

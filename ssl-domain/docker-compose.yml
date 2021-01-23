@@ -1,0 +1,40 @@
+#docker network create -d overlay --attachable traefik_default
+# env $(cat .env | grep ^[A-Z] | xargs) docker stack deploy -c docker-compose.yml crypto
+
+version: '3.3'
+networks:
+  traefik_default:
+    driver: overlay
+    external:
+      name:  traefik_default
+services:
+  crypto:
+    
+    image: eshnil2000/crypto-trading
+    hostname: crypto
+    labels:
+      # The labels are usefull for Traefik only
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik_default"
+      # Get the routes from http
+      - "traefik.http.routers.crypto.rule=Host(`crypto.${DOMAIN_NAME}`)"
+      - "traefik.http.routers.crypto.entrypoints=web"
+      # Redirect these routes to https
+      - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
+      - "traefik.http.routers.crypto.middlewares=redirect-to-https@docker"
+      # Get the routes from https
+      - "traefik.http.routers.crypto-secure.rule=Host(`crypto.${DOMAIN_NAME}`)"
+      - "traefik.http.routers.crypto-secure.entrypoints=websecure"
+      # Apply autentificiation with http challenge
+      - "traefik.http.routers.crypto-secure.tls=true"
+      - traefik.http.routers.crypto.service=crypto
+      - traefik.http.services.crypto.loadbalancer.server.port=5000
+      
+    environment:
+      KAFKA_BROKER_URL1: kafka1:9091
+      KAFKA_BROKER_URL2: kafka2:9092
+      KAFKA_BROKER_URL3: kafka3:9093
+      TRANSACTIONS_TOPIC: queueing.transactions
+      
+    networks:
+      traefik_default:

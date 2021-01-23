@@ -1,0 +1,114 @@
+#docker network create -d overlay --attachable traefik_default
+#docker pull confluentinc/cp-zookeeper:latest 
+#docker pull confluentinc/cp-kafka:latest
+#docker pull obsidiandynamics/kafdrop
+#docker stack deploy -c docker-compose.traefik.kafka.labs.yml kafka
+#On localhost, modify /etc/hosts : echo -e "127.0.0.01\tkafdrop.localhost" >>/etc/hosts
+# env $(cat .env | grep ^[A-Z] | xargs) docker stack deploy -c docker-compose.traefik.kafka.yml kafka
+
+version: '3.3'
+networks:
+  traefik_default:
+    driver: overlay
+    external:
+      name:  traefik_default
+services:
+  
+  zookeeper:
+    image: confluentinc/cp-zookeeper:latest
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    labels:
+      - traefik.http.routers.zookeeper.rule=Host(`zookeeper`)
+    networks:
+      traefik_default:
+
+  kafka1:
+    image: confluentinc/cp-kafka:latest
+    hostname: kafka1
+    depends_on:
+      - zookeeper
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: LISTENER_DOCKER_INTERNAL://kafka1:9091
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 3
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: LISTENER_DOCKER_INTERNAL:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: LISTENER_DOCKER_INTERNAL
+      KAFKA_BROKER_ID: 1
+    labels:
+      - traefik.http.routers.kafka1.rule=Host(`kafka1`)
+    networks:
+      traefik_default:
+      
+  kafka2:
+    image: confluentinc/cp-kafka:latest
+    hostname: kafka2
+    depends_on:
+      - zookeeper
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: LISTENER_DOCKER_INTERNAL://kafka2:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 3
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: LISTENER_DOCKER_INTERNAL:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: LISTENER_DOCKER_INTERNAL
+      KAFKA_BROKER_ID: 2
+    labels:
+      - traefik.http.routers.kafka2.rule=Host(`kafka2`)
+    networks:
+      traefik_default:
+  
+  kafka3:
+    image: confluentinc/cp-kafka:latest
+    hostname: kafka3
+    depends_on:
+      - zookeeper
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: LISTENER_DOCKER_INTERNAL://kafka3:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 3
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: LISTENER_DOCKER_INTERNAL:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: LISTENER_DOCKER_INTERNAL
+      KAFKA_BROKER_ID: 3
+    labels:
+      - traefik.http.routers.kafka3.rule=Host(`kafka3`)
+    networks:
+      traefik_default:
+  
+  
+  kafdrop:
+    image: obsidiandynamics/kafdrop
+    restart: "no"
+    #ports:
+    #  - "9000:9000"
+    environment:
+      KAFKA_BROKERCONNECT: "kafka1:9091"
+    depends_on:
+      - kafka1
+      - kafka2
+      - kafka3
+    
+    labels:
+      # The labels are usefull for Traefik only
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik_default"
+      # Get the routes from http
+      - "traefik.http.routers.kafdrop.rule=Host(`kafdrop.${DOMAIN_NAME}`)"
+      - "traefik.http.routers.kafdrop.entrypoints=web"
+      # Redirect these routes to https
+      - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
+      - "traefik.http.routers.kafdrop.middlewares=redirect-to-https@docker"
+      # Get the routes from https
+      - "traefik.http.routers.kafdrop-secure.rule=Host(`kafdrop.${DOMAIN_NAME}`)"
+      - "traefik.http.routers.kafdrop-secure.entrypoints=websecure"
+      # Apply autentificiation with http challenge
+      - "traefik.http.routers.kafdrop-secure.tls=true"
+
+      - traefik.http.routers.kafdrop.service=kafdrop
+      - traefik.http.services.kafdrop.loadbalancer.server.port=9000
+      
+    networks:
+      traefik_default:
